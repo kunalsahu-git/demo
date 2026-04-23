@@ -231,60 +231,90 @@ async function fetchWebsiteSignals(url) {
   }
 }
 
+// Fetch an image URL and return { data: base64string, mediaType } or null
+async function fetchImageAsBase64(imgUrl) {
+  const candidates = [
+    imgUrl,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(imgUrl)}`
+  ];
+  for (const u of candidates) {
+    try {
+      const res = await fetch(u, { signal: AbortSignal.timeout(9000) });
+      if (!res.ok) continue;
+      const blob = await res.blob();
+      if (blob.size < 2000) continue; // too small → not a real image
+      const base64 = await new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const r = reader.result;
+          resolve(typeof r === "string" && r.includes(",") ? r.split(",")[1] : null);
+        };
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+      if (base64) {
+        const mediaType = blob.type?.startsWith("image/") ? blob.type.split(";")[0] : "image/jpeg";
+        return { data: base64, mediaType };
+      }
+    } catch { /* try next */ }
+  }
+  return null;
+}
+
 async function analyzeProspect(url) {
   const endpoint = import.meta.env.VITE_API_ENDPOINT;
 
-  // Screenshot via thum.io — renders full JS, gives Claude the ACTUAL visual page
   const screenshotUrl = `https://image.thum.io/get/width/1280/crop/900/noanimate/${encodeURIComponent(url)}`;
 
-  // HTML head fetch (parallel) — useful for og:image, meta desc on static/SSR sites
-  const { signals: pageSignals, imageUrls, rawMeta } = await fetchWebsiteSignals(url);
+  // Run screenshot fetch + HTML signals in parallel
+  const [screenshot, { signals: pageSignals, imageUrls, rawMeta }] = await Promise.all([
+    fetchImageAsBase64(screenshotUrl),
+    fetchWebsiteSignals(url)
+  ]);
 
   const supplemental = pageSignals
-    ? `\n\nSupplementary HTML metadata extracted from the page source:\n${pageSignals}`
+    ? `\n\nHTML metadata from page source:\n${pageSignals}`
     : "";
 
-  const textPrompt = `You are looking at a real screenshot of ${url}. Analyze what you can SEE in the image — the actual rendered homepage.
-
-Return ONLY this JSON (no markdown, no backticks):
+  const jsonSchema = `Return ONLY this JSON (no markdown, no backticks):
 {
-  "companyName": "company name visible in the nav/logo",
-  "personaName": "realistic full name for a marketing leader at this company",
-  "personaTitle": "realistic job title e.g. VP of Marketing, Head of Digital",
-  "primaryColor": "#hex of the dominant brand color you see on screen",
-  "secondaryColor": "#hex of the secondary/accent color you see on screen",
-  "industry": "2-4 word description of what they do based on what you see",
-  "products": ["3 actual products or services visible or inferable from the page"],
-  "campaignName": "name of a timely campaign this company would run right now",
+  "companyName": "company name from the nav/logo",
+  "personaName": "realistic full name for a marketing leader here",
+  "personaTitle": "realistic title e.g. VP Marketing, Head of Digital",
+  "primaryColor": "#hex dominant brand color",
+  "secondaryColor": "#hex secondary/accent color",
+  "industry": "2-4 word description of what they do",
+  "products": ["3 actual products or services"],
+  "campaignName": "name of a timely campaign they would run now",
   "campaignDescription": "one sentence describing the campaign",
-  "urgentCampaignTrigger": "a realistic urgent business reason this campaign was accelerated",
-  "assetKeywords": ["4 specific visual photography keywords matching their content — e.g. 'athlete sprinting track', 'running shoe closeup', 'crowd marathon finish', 'sport performance gear'"],
+  "urgentCampaignTrigger": "realistic reason this campaign was accelerated",
+  "assetKeywords": ["4 specific visual photo keywords e.g. 'athlete sprinting', 'running shoe closeup'"],
   "contentClusterTitles": ["SEO title 1","SEO title 2","SEO title 3","SEO title 4"],
   "businessDescription": "one sentence on what this company does",
-  "siteDescription": "describe the visual design: dark/light, typography weight, imagery style",
-  "heroHeadline": "the exact main headline text you can read on the page",
-  "navLinks": ["exact nav link labels visible in the header"],
-  "heroSubtext": "the subheadline or body text beneath the main headline"
-}${supplemental}`;
+  "siteDescription": "describe visual design: dark/light, typography, imagery style",
+  "heroHeadline": "main headline text on the homepage",
+  "navLinks": ["nav link labels from the header"],
+  "heroSubtext": "subheadline beneath the main headline"
+}`;
 
-  const body = JSON.stringify({
-    model: import.meta.env.VITE_MODEL,
-    max_tokens: 1500,
-    system: "You analyze website screenshots and return ONLY a valid JSON object. No markdown. No backticks. No explanation. Base your analysis on what you can visually see in the screenshot.",
-    messages: [{
-      role: "user",
-      content: [
-        {
-          type: "image",
-          source: { type: "url", url: screenshotUrl }
-        },
-        {
-          type: "text",
-          text: textPrompt
-        }
-      ]
-    }]
-  });
+  // Vision path: screenshot converted to base64
+  const visionPrompt = `Analyze this real screenshot of ${url}. Extract brand data from what you visually see.${supplemental}\n\n${jsonSchema}`;
+  // Text-only fallback: Claude uses training knowledge + any HTML signals
+  const textOnlyPrompt = `Analyze this company website: ${url}${supplemental}\n\n${jsonSchema}`;
+
+  const messages = screenshot
+    ? [{
+        role: "user",
+        content: [
+          { type: "image", source: { type: "base64", media_type: screenshot.mediaType, data: screenshot.data } },
+          { type: "text", text: visionPrompt }
+        ]
+      }]
+    : [{ role: "user", content: textOnlyPrompt }];
+
+  const system = screenshot
+    ? "You analyze website screenshots and return ONLY a valid JSON object. Base your analysis on what you visually see."
+    : "You analyze company websites and return ONLY a valid JSON object. No markdown. No backticks. Just the raw JSON.";
 
   const res = await fetch(endpoint, {
     method: "POST",
@@ -293,24 +323,23 @@ Return ONLY this JSON (no markdown, no backticks):
       "anthropic-version": "2023-06-01",
       "x-api-key": import.meta.env.VITE_API_KEY
     },
-    body
+    body: JSON.stringify({ model: import.meta.env.VITE_MODEL, max_tokens: 1500, system, messages })
   });
 
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error?.message || "Anthropic API Error");
+  if (!res.ok) throw new Error(JSON.stringify(data.error || data));
   const text = data.content?.[0]?.text || "";
   const match = text.match(/\{[\s\S]*\}/);
-  if (!match) throw new Error("No JSON from Anthropic");
+  if (!match) throw new Error("No JSON from model");
 
-  // Merge: og:image from HTML head is the highest-res brand image available
   const ogImage = rawMeta?.ogImage || null;
   const allImages = ogImage ? [ogImage, ...imageUrls.filter(u => u !== ogImage)] : imageUrls;
 
   return {
     ...JSON.parse(match[0]),
     url,
-    screenshotUrl,          // real rendered screenshot — used in Screen 4 + campaign hero
-    imageUrls: allImages,   // og:image first, then any other extracted images
+    screenshotUrl,
+    imageUrls: allImages,
     rawMeta: rawMeta || {}
   };
 }
@@ -515,15 +544,6 @@ function BrandedMockup({ p }) {
 }
 
 function buildKeywordImages(p) {
-  // Prefer specific asset keywords from website analysis for contextual Unsplash images
-  const keywords = p.assetKeywords;
-  if (keywords?.length > 0) {
-    return Array.from({ length: 8 }, (_, i) => {
-      const kw = encodeURIComponent(keywords[i % keywords.length]);
-      return `https://source.unsplash.com/600x420/?${kw}&sig=${i}`;
-    });
-  }
-  // Fallback: industry-curated Unsplash IDs
   const ind = (p.industry || "default").toLowerCase();
   const key = Object.keys(IMAGE_DICT).find(k => ind.includes(k.split(" ")[0])) || "default";
   const ids = IMAGE_DICT[key] || IMAGE_DICT["default"];
