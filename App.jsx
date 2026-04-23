@@ -2135,8 +2135,58 @@ function Launchpad({ p, onStart }) {
   );
 }
 
+// ── Password Gate ─────────────────────────────────────────────────────────────
+function PasswordGate({ onAuth }) {
+  const [val, setVal] = useState("");
+  const [err, setErr] = useState(false);
+
+  const attempt = () => {
+    if (val === (import.meta.env.VITE_DEMO_PASSWORD || "acquia2026")) {
+      sessionStorage.setItem("demo_auth", "1");
+      onAuth();
+    } else {
+      setErr(true);
+      setVal("");
+    }
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#000", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Sans', sans-serif" }}>
+      <div style={{ background: "#fff", borderRadius: 16, width: 480, overflow: "hidden", boxShadow: "0 24px 64px rgba(0,0,0,0.5)" }}>
+        <div style={{ padding: "40px 40px 28px", textAlign: "center", borderBottom: "1px solid #f3f4f6" }}>
+          <div style={{ marginBottom: 16, display: "flex", justifyContent: "center" }}>
+            <div style={{ width: 48, height: 48, borderRadius: 12, background: "linear-gradient(135deg,#0BB5D6,#0076BD)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 22, fontWeight: 800 }}>⚡</div>
+          </div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: "#111827", marginBottom: 8 }}>Authentication Required</div>
+          <div style={{ fontSize: 14, color: "#6b7280" }}>This deployment is protected.</div>
+        </div>
+        <div style={{ padding: "28px 40px 36px" }}>
+          <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#9ca3af", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Visitor Password</label>
+          <input
+            type="password"
+            value={val}
+            autoFocus
+            onChange={e => { setVal(e.target.value); setErr(false); }}
+            onKeyDown={e => e.key === "Enter" && attempt()}
+            style={{ width: "100%", border: `1px solid ${err ? "#EF4444" : "#e5e7eb"}`, borderRadius: 8, padding: "14px 16px", fontSize: 15, outline: "none", marginBottom: err ? 6 : 16, color: "#111827", background: err ? "#FEF2F2" : "#fff" }}
+            placeholder=""
+          />
+          {err && <div style={{ color: "#EF4444", fontSize: 12, marginBottom: 12 }}>Incorrect password. Please try again.</div>}
+          <button
+            onClick={attempt}
+            style={{ width: "100%", background: "#111827", color: "#fff", border: "none", borderRadius: 8, padding: "15px 0", fontSize: 15, fontWeight: 700, cursor: "pointer" }}
+          >
+            Log in
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── App Root ──────────────────────────────────────────────────────────────────
 export default function App() {
+  const [authed, setAuthed] = useState(() => sessionStorage.getItem("demo_auth") === "1");
   const [phase, setPhase] = useState("welcome");
   const [prospect, setProspect] = useState(null);
   const [campHtml, setCampHtml] = useState(null);
@@ -2164,6 +2214,8 @@ export default function App() {
   const handleRestart = () => {
     setPhase("welcome"); setProspect(null); setCampHtml(null); setDamImages([]); setAnalyzingUrl(""); setSelectedScreens(null);
   };
+
+  if (!authed) return <><style>{STYLE}</style><PasswordGate onAuth={() => setAuthed(true)} /></>;
 
   return (
     <>
