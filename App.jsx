@@ -231,52 +231,33 @@ async function fetchWebsiteSignals(url) {
   }
 }
 
-// Fetch an image URL and return { data: base64string, mediaType } or null
-async function fetchImageAsBase64(imgUrl) {
-  const candidates = [
-    imgUrl,
-    `https://api.allorigins.win/raw?url=${encodeURIComponent(imgUrl)}`
-  ];
-  for (const u of candidates) {
-    try {
-      const res = await fetch(u, { signal: AbortSignal.timeout(9000) });
-      if (!res.ok) continue;
-      const blob = await res.blob();
-      if (blob.size < 2000) continue; // too small → not a real image
-      const base64 = await new Promise(resolve => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const r = reader.result;
-          resolve(typeof r === "string" && r.includes(",") ? r.split(",")[1] : null);
-        };
-        reader.onerror = () => resolve(null);
-        reader.readAsDataURL(blob);
-      });
-      if (base64) {
-        const mediaType = blob.type?.startsWith("image/") ? blob.type.split(";")[0] : "image/jpeg";
-        return { data: base64, mediaType };
-      }
-    } catch { /* try next */ }
-  }
-  return null;
-}
-
 async function analyzeProspect(url) {
   const endpoint = import.meta.env.VITE_API_ENDPOINT;
 
-  const screenshotUrl = `https://image.thum.io/get/width/1280/crop/900/noanimate/${encodeURIComponent(url)}`;
+  // Fetch Microlink screenshot + HTML signals in parallel.
+  // Microlink renders full JS SPAs and returns a CDN URL with CORS headers.
+  // Falls back to thum.io which works as an <img src> (no CORS needed for img tags).
+  const thumFallback = `https://image.thum.io/get/width/1280/crop/900/noanimate/${encodeURIComponent(url)}`;
 
-  // Run screenshot fetch + HTML signals in parallel
-  const [screenshot, { signals: pageSignals, imageUrls, rawMeta }] = await Promise.all([
-    fetchImageAsBase64(screenshotUrl),
+  const [mlScreenshot, { signals: pageSignals, imageUrls, rawMeta }] = await Promise.all([
+    fetch(`https://api.microlink.io?url=${encodeURIComponent(url)}&screenshot=true`, {
+      signal: AbortSignal.timeout(12000)
+    })
+      .then(r => r.json())
+      .then(d => d?.data?.screenshot?.url || null)
+      .catch(() => null),
     fetchWebsiteSignals(url)
   ]);
+
+  const screenshotUrl = mlScreenshot || thumFallback;
 
   const supplemental = pageSignals
     ? `\n\nHTML metadata from page source:\n${pageSignals}`
     : "";
 
-  const jsonSchema = `Return ONLY this JSON (no markdown, no backticks):
+  const prompt = `Analyze this company website: ${url}${supplemental}
+
+Return ONLY this JSON (no markdown, no backticks):
 {
   "companyName": "company name from the nav/logo",
   "personaName": "realistic full name for a marketing leader here",
@@ -297,25 +278,6 @@ async function analyzeProspect(url) {
   "heroSubtext": "subheadline beneath the main headline"
 }`;
 
-  // Vision path: screenshot converted to base64
-  const visionPrompt = `Analyze this real screenshot of ${url}. Extract brand data from what you visually see.${supplemental}\n\n${jsonSchema}`;
-  // Text-only fallback: Claude uses training knowledge + any HTML signals
-  const textOnlyPrompt = `Analyze this company website: ${url}${supplemental}\n\n${jsonSchema}`;
-
-  const messages = screenshot
-    ? [{
-        role: "user",
-        content: [
-          { type: "image", source: { type: "base64", media_type: screenshot.mediaType, data: screenshot.data } },
-          { type: "text", text: visionPrompt }
-        ]
-      }]
-    : [{ role: "user", content: textOnlyPrompt }];
-
-  const system = screenshot
-    ? "You analyze website screenshots and return ONLY a valid JSON object. Base your analysis on what you visually see."
-    : "You analyze company websites and return ONLY a valid JSON object. No markdown. No backticks. Just the raw JSON.";
-
   const res = await fetch(endpoint, {
     method: "POST",
     headers: {
@@ -323,7 +285,12 @@ async function analyzeProspect(url) {
       "anthropic-version": "2023-06-01",
       "x-api-key": import.meta.env.VITE_API_KEY
     },
-    body: JSON.stringify({ model: import.meta.env.VITE_MODEL, max_tokens: 1500, system, messages })
+    body: JSON.stringify({
+      model: import.meta.env.VITE_MODEL,
+      max_tokens: 1500,
+      system: "You analyze company websites and return ONLY a valid JSON object. No markdown. No backticks. Just the raw JSON.",
+      messages: [{ role: "user", content: prompt }]
+    })
   });
 
   const data = await res.json();
@@ -419,31 +386,34 @@ Output a single complete HTML file. All CSS in a <style> tag in <head>. No exter
 
   let htmlResult = null;
 
-  try {
-    const anthropicRes = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "anthropic-version": "2023-06-01",
-        "x-api-key": import.meta.env.VITE_API_KEY
-      },
-      body: JSON.stringify({
-        model: import.meta.env.VITE_MODEL,
-        max_tokens: 8000,
-        system: sysPrompt,
-        messages: [{ role: "user", content: userPrompt }]
-      })
-    });
-    if (anthropicRes.ok) {
-      const data = await anthropicRes.json();
-      const text = data.content?.[0]?.text || "";
-      const match = text.match(/<!DOCTYPE html>[\s\S]*/i);
-      htmlResult = match ? match[0] : text;
-    } else {
-      console.warn("Anthropic HTML gen status not ok", anthropicRes.status);
+  for (let attempt = 0; attempt < 2 && !htmlResult; attempt++) {
+    if (attempt > 0) await new Promise(r => setTimeout(r, 4000));
+    try {
+      const anthropicRes = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "anthropic-version": "2023-06-01",
+          "x-api-key": import.meta.env.VITE_API_KEY
+        },
+        body: JSON.stringify({
+          model: import.meta.env.VITE_MODEL,
+          max_tokens: 8000,
+          system: sysPrompt,
+          messages: [{ role: "user", content: userPrompt }]
+        })
+      });
+      if (anthropicRes.ok) {
+        const data = await anthropicRes.json();
+        const text = data.content?.[0]?.text || "";
+        const match = text.match(/<!DOCTYPE html>[\s\S]*/i);
+        htmlResult = match ? match[0] : text;
+      } else {
+        console.warn("HTML gen attempt", attempt + 1, "status:", anthropicRes.status);
+      }
+    } catch (e) {
+      console.warn("HTML gen attempt", attempt + 1, "failed:", e.message);
     }
-  } catch (e) {
-    console.error("Anthropic HTML gen failed:", e);
   }
 
   return htmlResult;
