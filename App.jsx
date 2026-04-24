@@ -514,16 +514,6 @@ function BrandedMockup({ p }) {
 }
 
 function buildKeywordImages(p) {
-  // Use AI-extracted asset keywords for contextual loremflickr images
-  const keywords = p.assetKeywords;
-  if (keywords?.length > 0) {
-    return Array.from({ length: 8 }, (_, i) => {
-      // Take first two words of keyword phrase for better Flickr matching
-      const kw = keywords[i % keywords.length].split(" ").slice(0, 2).join(",");
-      return `https://loremflickr.com/600/420/${encodeURIComponent(kw)}?lock=${i + 1}`;
-    });
-  }
-  // Fallback: industry-curated Unsplash IDs — with broader matching
   const ind = (p.industry || "default").toLowerCase();
   const ALIASES = {
     "healthcare & wellness": ["health", "medical", "pharma", "clinic", "wellness", "hospital"],
@@ -532,7 +522,7 @@ function buildKeywordImages(p) {
     "automotive": ["auto", "car", "vehicle", "motor", "drive", "fleet", "electric"],
     "education": ["edu", "university", "college", "school", "learn", "academ"],
     "travel & hospitality": ["travel", "hotel", "hospit", "resort", "airline", "tourism"],
-    "food & beverage": ["food", "cafe", "coffee", "restaurant", "beverage", "drink"],
+    "food & beverage": ["food", "cafe", "coffee", "restaurant", "beverage", "drink", "starbucks", "barista"],
     "enterprise technology": ["tech", "software", "platform", "saas", "digital", "enterprise", "cloud", "ai", "data"],
   };
   const key = Object.keys(ALIASES).find(k => ALIASES[k].some(a => ind.includes(a))) || "default";
@@ -1245,15 +1235,17 @@ function Screen7({ p }) {
   const prospectThumb = (p.imageUrls || [])[0] || null;
   const faviconUrl = p.url ? `https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(p.url)}` : null;
 
+  // thumbUrl uses curated Unsplash photos matching each site's industry
+  const unsplash = id => `https://images.unsplash.com/photo-${id}?w=400&h=200&fit=crop&auto=format`;
   const siteCards = [
     { name: ip("{co} Site", p), domain: `${co.toLowerCase().replace(/\s/g, "")}.acquia.site`, isProspect: true },
-    { name: "Valvoline Global", domain: "valvolineglobal.acquia.site", color: "#DC2626", color2: "#991B1B" },
-    { name: "Sean-POC-grainIng", domain: "sean-poc-graining.acquia.site", color: "#2563EB", color2: "#1d4ed8" },
-    { name: "DAM Media", domain: "dammedia.acquia.site", color: "#0891B2", color2: "#0e7490" },
-    { name: "Balzano Demo", domain: "balzanodemo.acquia.site", color: "#7C3AED", color2: "#6d28d9" },
-    { name: "Eudaimonia Univ.", domain: "eudaimonia.acquia.site", color: "#991B1B", color2: "#7f1d1d" },
-    { name: "Eudaimonia CPG", domain: "eudaimonia-cpg.acquia.site", color: "#7C3AED", color2: "#5b21b6" },
-    { name: "TestNova Dev", domain: "testnova.acquia.site", color: "#0891B2", color2: "#164e63" },
+    { name: "Valvoline Global",   domain: "valvolineglobal.acquia.site",   thumbUrl: unsplash("1492144534655-ae79c964c9d7") }, // automotive
+    { name: "Sean-POC-grainIng", domain: "sean-poc-graining.acquia.site",  thumbUrl: unsplash("1518770660439-4636190af475") }, // enterprise tech
+    { name: "DAM Media",          domain: "dammedia.acquia.site",           thumbUrl: unsplash("1504639725590-34d0984388bd") }, // digital/tech
+    { name: "Balzano Demo",       domain: "balzanodemo.acquia.site",        thumbUrl: unsplash("1441984904996-e0b6ba687e04") }, // retail/fashion
+    { name: "Eudaimonia Univ.",   domain: "eudaimonia.acquia.site",         thumbUrl: unsplash("1523050854058-8df90110c9f1") }, // education
+    { name: "Eudaimonia CPG",     domain: "eudaimonia-cpg.acquia.site",     thumbUrl: unsplash("1445205170230-053b83016050") }, // lifestyle/retail
+    { name: "TestNova Dev",       domain: "testnova.acquia.site",           thumbUrl: unsplash("1460925895917-afdab827c52f") }, // tech/startup
   ];
 
   return (
@@ -1283,9 +1275,12 @@ function Screen7({ p }) {
 function SiteCard({ card, pc, sc, co, prospectThumb, faviconUrl }) {
   const [imgFailed, setImgFailed] = useState(false);
   const prospectSeed = co.toLowerCase().replace(/\s/g, "");
+
+  // Prospect card: use microlink screenshot or site og:image; fallback to picsum
+  // Static cards: use the curated industry thumbUrl set on the card
   const thumbSrc = card.isProspect
     ? (prospectThumb && !imgFailed ? prospectThumb : `https://picsum.photos/seed/${prospectSeed}/400/200`)
-    : `https://picsum.photos/seed/${card.name.replace(/\s/g, "")}/400/200`;
+    : (card.thumbUrl || `https://picsum.photos/seed/${card.name.replace(/\s/g, "")}/400/200`);
 
   return (
     <div style={{ border: card.isProspect ? `2px solid ${pc}` : "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden", boxShadow: card.isProspect ? `0 0 0 3px ${pc}22` : "none" }}>
@@ -1442,15 +1437,38 @@ function Screen11({ p }) {
   );
 }
 
+// Filenames that match each IMAGE_DICT industry's actual photo content
+const DAM_FILE_LABELS = {
+  "food & beverage":       ["iced-coffee-cup","barista-crafting-drink","fresh-pastry-display","coffee-beans-roasted","cafe-morning-light","latte-art-pour","espresso-closeup","seasonal-beverage"],
+  "retail & commerce":     ["product-hero-shot","brand-campaign-visual","store-lifestyle","new-collection-drop","fashion-editorial","brand-packshot","retail-moment","campaign-asset"],
+  "healthcare & wellness": ["patient-digital-care","clinical-technology","wellness-moment","healthcare-team","medical-innovation","patient-experience","telehealth-session","care-pathway"],
+  "financial services":    ["digital-banking-app","wealth-management","fintech-interface","investment-growth","banking-mobile","financial-advisor","secure-transaction","market-insights"],
+  "automotive":            ["vehicle-launch-hero","driving-experience","ev-innovation","interior-detail","brand-campaign","showroom-digital","fleet-overview","performance-capture"],
+  "education":             ["campus-life","learning-experience","student-success","digital-classroom","research-lab","graduation-day","academic-excellence","future-ready"],
+  "travel & hospitality":  ["destination-hero","luxury-property","guest-experience","travel-lifestyle","hotel-amenities","adventure-moment","booking-journey","loyalty-reward"],
+  "enterprise technology": ["platform-dashboard","team-collaboration","cloud-infrastructure","data-insights","product-launch","enterprise-workflow","ai-analytics","digital-transformation"],
+  "default":               ["brand-hero-shot","campaign-visual","product-lifestyle","team-collaboration","digital-experience","customer-moment","brand-identity","marketing-asset"],
+};
+
 function Screen12({ p, damImages }) {
   const pc = p.primaryColor || "#0076BD";
   const sc = p.secondaryColor || "#7C3AED";
-  const kws = p.assetKeywords || ["product", "brand", "campaign", "digital"];
 
-  const fileNames = Array.from({ length: 8 }).map((_, i) => {
-    const kw = kws[i % kws.length] || "asset";
-    return `${kw.toLowerCase().replace(/ /g, "-")}-${2400 + i * 137}.jpg`;
-  });
+  // Match filenames to actual IMAGE_DICT content for this industry
+  const ind = (p.industry || "default").toLowerCase();
+  const ALIASES = {
+    "food & beverage": ["food","cafe","coffee","restaurant","beverage","drink","starbucks","barista"],
+    "retail & commerce": ["retail","shop","commerce","ecommerce","e-commerce","fashion","apparel","store","brand","product"],
+    "healthcare & wellness": ["health","medical","pharma","clinic","wellness","hospital"],
+    "financial services": ["financ","bank","invest","insurance","fintech","wealth"],
+    "automotive": ["auto","car","vehicle","motor","drive","fleet","electric"],
+    "education": ["edu","university","college","school","learn","academ"],
+    "travel & hospitality": ["travel","hotel","hospit","resort","airline","tourism"],
+    "enterprise technology": ["tech","software","platform","saas","digital","enterprise","cloud","ai","data"],
+  };
+  const industryKey = Object.keys(ALIASES).find(k => ALIASES[k].some(a => ind.includes(a))) || "default";
+  const labels = DAM_FILE_LABELS[industryKey] || DAM_FILE_LABELS["default"];
+  const fileNames = Array.from({ length: 8 }).map((_, i) => `${labels[i]}-${2400 + i * 137}.jpg`);
 
   return (
     <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
