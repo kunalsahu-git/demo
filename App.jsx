@@ -28,16 +28,98 @@ body{font-family:'DM Sans',sans-serif;}
 
 
 // ── Real Unsplash Image Dictionary mapped by Industry ─────────────────────────
+// All IDs are 2018-2022 era — old pre-2018 IDs were returning duplicate/broken images
 const IMAGE_DICT = {
-  "healthcare & wellness": ["1576091160399-112ba8d25d1d", "1584308666744-247e8f68ca39", "1516549655169-df83a0774514", "1532938911079-1b06ac7ceec7", "1551076805-e18690c50f15", "1581056771107-11a4b09a56e1", "1505751172876-fa14356aba70", "1527613426400-cce73062cfa7"],
-  "financial services": ["1611974789855-9c2a0a7236a3", "1556742049-0cfed4f6a45d", "1579621970163-a41c86bac431", "1450101499163-c8848c66cb85", "1590283603385-17ffb3a7f29f", "1565514020179-026b92b2d08b", "1601597111164-4f336e0160b6", "1554224155-6725b3076ce9"],
-  "retail & commerce": ["1441984904996-e0b6ba687e04", "1483985988355-763728e1935b", "1445205170230-053b83016050", "1472851294608-062f824d29cc", "1523381210434-271e8be1f52b", "1460353581641-378add9401ad", "1558769132-cb1aea458c5e", "1485230821035-77de664c39c8"],
-  "automotive": ["1492144534655-ae79c964c9d7", "1503376713356-ab0e19a3b5a7", "1552519507-da3b142c6e3d", "1583123637159-8fa9fbb00d06", "1549317661-bd32c8ce0db2", "1485291571150-772bcfc10ed5", "1533473359331-01d5201cb5c1", "1502877338535-766d1452684c"],
-  "education": ["1523050854058-8df90110c9f1", "1509062522246-3755977927d7", "1427504141085-329e55182062", "1524178232363-1ecef6156e0d", "1503676260728-1c00da094a0b", "1434030216411-0b793f4b4173", "1513258496099-481a80fa18c7", "1497633762465-e3dfe56b00c2"],
-  "travel & hospitality": ["1436491865332-7a61a3518fdf", "1476514525535-07fb3b4ae5f1", "1501785888041-af3ef285b460", "1445019980597-93e408df3cb2", "1540541338-8c272ef6d8e2", "1566073771259-6a8506099945", "1520260497591-112f2f40a3f4", "1495562569060-2eec283d3391"],
-  "food & beverage": ["1497935586351-b67a49e012bf", "1509042239860-f550ce710b93", "1445116864225-8bafae29a3d1", "1511920170033-f8396924c348", "1495474472359-d3b7e5e59b02", "1442527418522-1d80a7ec3f91", "1461023058943-07fcbe16d735", "1504630083234-14187a9df0f5"],
-  "enterprise technology": ["1518770660439-4636190af475", "1504639725590-34d0984388bd", "1550751827-4bd374c3f58b", "1451187580459-43490279c0fa", "1460925895917-afdab827c52f", "1504384308090-c894fdcc538d", "1551288049-bebda4e38f71", "1531297172867-1ea55333fccf"],
-  "default": ["1497366216548-37526070297c", "1522071820081-009f0129c71c", "1454165804606-c3d57bc86b40", "1515169061895-373a0e5b0260", "1521737604893-d14cc237f11d", "1507679622140-615266c150fa", "1552664730-d307ca884978", "1531482615713-2defd0a5192b"]
+  "healthcare & wellness": [
+    "1576091160399-112ba8d25d1d", // stethoscope flatlay
+    "1584308666744-247e8f68ca39", // doctor with device
+    "1559757148-5c7a5aed4b82",    // healthcare professional
+    "1532938911079-1b06ac7ceec7", // doctor consultation
+    "1551076805-e18690c50f15",    // hospital corridor
+    "1581056771107-11a4b09a56e1", // medical team
+    "1516549655169-df83a0774514", // lab researcher
+    "1603398938240-de1e3a68db5f"  // medicine cabinet
+  ],
+  "financial services": [
+    "1611974789855-9c2a0a7236a3", // trading dashboard
+    "1556742049-0cfed4f6a45d",    // finance laptop
+    "1579621970163-a41c86bac431", // investment/gold
+    "1553729484-70c6a4ab0938",    // mobile fintech
+    "1590283603385-17ffb3a7f29f", // contactless payment
+    "1565514020179-026b92b2d08b", // financial planning
+    "1601597111164-4f336e0160b6", // fintech interface
+    "1554224155-6725b3076ce9"     // market data
+  ],
+  "retail & commerce": [
+    "1558618618-8c700b8f4a30",    // fashion store interior
+    "1483985988355-763728e1935b", // shopping bags
+    "1567401893-0c4c4a85b9b4",    // retail lifestyle
+    "1536299192238-f3e5d9e7abd9", // fashion shopping
+    "1523381210434-271e8be1f52b", // retail product display
+    "1607082348-72f0fcb4d93d",    // fashion editorial
+    "1558769132-cb1aea458c5e",    // clothing rack
+    "1599309329273-e44da3b9be9c"  // boutique storefront
+  ],
+  "automotive": [
+    "1552519507-da3b142c6e3d",    // luxury car exterior
+    "1583123637159-8fa9fbb00d06", // modern SUV
+    "1549317661-bd32c8ce0db2",    // car detail shot
+    "1533473359331-01d5201cb5c1", // car at night
+    "1503376713356-ab0e19a3b5a7", // driving perspective
+    "1494976388531-d1058494cdd8", // luxury car road shot
+    "1618843986563-5f4f0f3f76e5", // EV charging
+    "1597762470488-a47ded63c220"  // showroom interior
+  ],
+  "education": [
+    "1523050854058-8df90110c9f1", // university campus
+    "1509062522246-3755977927d7", // students in class
+    "1523240409-dae53b3b3c75",    // modern classroom
+    "1524178232363-1ecef6156e0d", // online learning
+    "1541339155-3b25fa7c30b0",    // student studying
+    "1513258496099-481a80fa18c7", // graduation ceremony
+    "1588072404-9b54b52dd3cb",    // digital learning
+    "1580582855-7e30c07a9d5e"     // research library
+  ],
+  "travel & hospitality": [
+    "1540555640-c8e4dfd5cfb3",    // tropical destination
+    "1583244407-4b4b2ac08009",    // luxury resort pool
+    "1501785888041-af3ef285b460", // seaside vista
+    "1566073771259-6a8506099945", // hotel pool terrace
+    "1540541338-8c272ef6d8e2",    // hotel room premium
+    "1520260497591-112f2f40a3f4", // airplane window seat
+    "1476514525535-07fb3b4ae5f1", // mountain landscape
+    "1549639289-c217c27f58e9"     // boutique hotel lobby
+  ],
+  "food & beverage": [
+    "1497935586351-b67a49e012bf", // coffee & espresso flatlay
+    "1509042239860-f550ce710b93", // latte art
+    "1571091718767-18b5b1457add", // espresso shot
+    "1511920170033-f8396924c348", // coffee beans
+    "1495474472359-d3b7e5e59b02", // overhead black coffee
+    "1578897839-96d8b3a6e903",    // cafe scene
+    "1572019523773-fa6a9070f2a2", // hot coffee cup
+    "1504630083234-14187a9df0f5"  // warm cafe interior
+  ],
+  "enterprise technology": [
+    "1518770660439-4636190af475", // tech setup/gear
+    "1504639725590-34d0984388bd", // code on screen
+    "1550751827-4bd374c3f58b",    // data center
+    "1551288049-bebda4e38f71",    // AI concept
+    "1531297172867-1ea55333fccf", // software dev
+    "1504384308090-c894fdcc538d", // tech workspace
+    "1460925895917-afdab827c52f", // laptop minimal
+    "1573164713988-8665fc963095"  // cloud/server room
+  ],
+  "default": [
+    "1497366216548-37526070297c", // open office
+    "1522071820081-009f0129c71c", // team meeting
+    "1551836022-d33370ef43b6",    // modern workspace
+    "1515169061895-373a0e5b0260", // business professional
+    "1521737604893-d14cc237f11d", // focused work
+    "1552664730-d307ca884978",    // creative office
+    "1531482615713-2defd0a5192b", // innovation space
+    "1507679622140-615266c150fa"  // productivity
+  ]
 };
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
@@ -239,17 +321,27 @@ async function analyzeProspect(url) {
   // Falls back to thum.io which works as an <img src> (no CORS needed for img tags).
   const thumFallback = `https://image.thum.io/get/width/1280/crop/900/noanimate/${encodeURIComponent(url)}`;
 
-  const [mlScreenshot, { signals: pageSignals, imageUrls, rawMeta }] = await Promise.all([
-    fetch(`https://api.microlink.io?url=${encodeURIComponent(url)}&screenshot=true`, {
+  const [mlData, { signals: pageSignals, imageUrls, rawMeta }] = await Promise.all([
+    fetch(`https://api.microlink.io?url=${encodeURIComponent(url)}&screenshot=true&images=true`, {
       signal: AbortSignal.timeout(12000)
     })
       .then(r => r.json())
-      .then(d => d?.data?.screenshot?.url || null)
-      .catch(() => null),
+      .then(d => ({
+        screenshot: d?.data?.screenshot?.url || null,
+        mainImage: d?.data?.image?.url || null,
+        images: (d?.data?.images || [])
+          .filter(img =>
+            img.url &&
+            (img.width > 300 || !img.width) &&
+            !/(icon|logo|badge|pixel|sprite|tracking|avatar|1x1|button)/i.test(img.url)
+          )
+          .slice(0, 8)
+      }))
+      .catch(() => ({ screenshot: null, mainImage: null, images: [] })),
     fetchWebsiteSignals(url)
   ]);
 
-  const screenshotUrl = mlScreenshot || thumFallback;
+  const screenshotUrl = mlData.screenshot || thumFallback;
 
   const supplemental = pageSignals
     ? `\n\nHTML metadata from page source:\n${pageSignals}`
@@ -307,6 +399,8 @@ Return ONLY this JSON (no markdown, no backticks):
     url,
     screenshotUrl,
     imageUrls: allImages,
+    mlMainImage: mlData.mainImage,
+    mlPageImages: mlData.images,
     rawMeta: rawMeta || {}
   };
 }
@@ -342,10 +436,11 @@ function injectClusterSection(html, p) {
   return html.replace(/<\/body>/i, section + '</body>');
 }
 
-async function genCampaignHTML(p) {
+async function genCampaignHTML(p, resolvedImages) {
   const endpoint = import.meta.env.VITE_API_ENDPOINT;
 
-  const fallbackImgs = buildKeywordImages(p);
+  // Use dynamically resolved images if available, otherwise fall back to curated IDs
+  const fallbackImgs = resolvedImages?.length ? resolvedImages : buildKeywordImages(p);
   const ogImage = p.rawMeta?.ogImage;
 
   // og:image is purpose-built for cross-domain embedding (social/OG tags) — always loads.
@@ -572,6 +667,98 @@ function buildKeywordImages(p) {
   const key = Object.keys(ALIASES).find(k => ALIASES[k].some(a => ind.includes(a))) || "default";
   const ids = IMAGE_DICT[key] || IMAGE_DICT["default"];
   return ids.map(id => `https://images.unsplash.com/photo-${id}?w=600&h=420&fit=crop&auto=format`);
+}
+
+// ── Dynamic image probe: tests each URL by loading a real <img>, keeps only those that load ──
+function probeImages(urls, maxGood = 5, timeoutMs = 5000) {
+  return new Promise(resolve => {
+    const uniq = [...new Set(urls.filter(Boolean))];
+    if (!uniq.length) { resolve([]); return; }
+    const good = [];
+    let settled = 0;
+    const finish = () => { if (++settled === uniq.length) resolve(good.slice(0, maxGood)); };
+    uniq.forEach(url => {
+      if (good.length >= maxGood) { finish(); return; }
+      const img = new window.Image();
+      const t = setTimeout(() => { img.src = ""; finish(); }, timeoutMs);
+      img.onload = () => {
+        clearTimeout(t);
+        if (img.naturalWidth > 100 && img.naturalHeight > 80) good.push(url);
+        finish();
+      };
+      img.onerror = () => { clearTimeout(t); finish(); };
+      // crossOrigin=anonymous lets naturalWidth/Height work for cross-origin images
+      img.crossOrigin = "anonymous";
+      img.src = url;
+    });
+  });
+}
+
+// ── Fetch keyword-based images: Unsplash API → source.unsplash.com → hardcoded fallback ──
+async function fetchKeywordImages(assetKeywords, industry, count = 8) {
+  const accessKey = import.meta.env.VITE_UNSPLASH_ACCESS_KEY;
+
+  // If Unsplash API key is configured: proper search returning stable CDN URLs
+  if (accessKey) {
+    try {
+      const query = (assetKeywords.slice(0, 3).join(" ") || industry || "business")
+        .replace(/['"]/g, "").trim();
+      const res = await fetch(
+        `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=${count}&orientation=landscape`,
+        { headers: { Authorization: `Client-ID ${accessKey}` }, signal: AbortSignal.timeout(8000) }
+      );
+      const data = await res.json();
+      if (data.results?.length) {
+        return data.results.map(r => r.urls.regular);
+      }
+    } catch { /* fall through */ }
+  }
+
+  // source.unsplash.com keyword redirect (no API key needed — works as img src)
+  if (assetKeywords.length) {
+    return assetKeywords.slice(0, count).map((kw, i) => {
+      const term = encodeURIComponent(kw.split(" ").slice(0, 4).join(","));
+      // sig= makes each slot fetch a distinct photo even for similar keywords
+      return `https://source.unsplash.com/800x600/?${term}&sig=${i}`;
+    });
+  }
+
+  // Last resort: curated hardcoded IDs by industry
+  return buildKeywordImages({ industry }).slice(0, count);
+}
+
+// ── Main image pipeline: site images first, keyword Unsplash fallback ──
+async function buildDynamicImages(p) {
+  const pool = [];
+
+  // Tier 1 — OG/Twitter card image: designed for cross-domain embedding, always reliable
+  if (p.rawMeta?.ogImage) pool.push(p.rawMeta.ogImage);
+
+  // Tier 2 — Microlink main image (their extraction of the primary page image)
+  if (p.mlMainImage && p.mlMainImage !== p.rawMeta?.ogImage) pool.push(p.mlMainImage);
+
+  // Tier 3 — Microlink page images (filtered by size already in analyzeProspect)
+  (p.mlPageImages || []).forEach(img => {
+    const u = img.url || img;
+    if (u && !pool.includes(u)) pool.push(u);
+  });
+
+  // Tier 4 — HTML-scraped image URLs (may have hotlink protection — probing handles this)
+  (p.imageUrls || []).forEach(u => {
+    if (u && !pool.includes(u)) pool.push(u);
+  });
+
+  // Probe which of the site images actually load in this browser context
+  const working = await probeImages(pool, 5);
+
+  // Fill remaining slots with keyword-based Unsplash (relevant to the actual brand)
+  const needed = Math.max(0, 8 - working.length);
+  if (needed > 0) {
+    const kwImgs = await fetchKeywordImages(p.assetKeywords || [], p.industry || "default", needed);
+    working.push(...kwImgs);
+  }
+
+  return working.slice(0, 8);
 }
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
@@ -2346,15 +2533,32 @@ export default function App() {
       console.error("Analysis failed:", e);
       p = fallbackProspect(url);
     }
+
+    // Set quick curated fallback immediately so the DAM page has something to show
+    const quickImages = buildKeywordImages(p);
     setProspect(p);
-    // DAM always uses curated IMAGE_DICT images so filenames always match what's displayed
-    setDamImages(buildKeywordImages(p));
-    // Start campaign HTML generation immediately — no delay — so it's ready well before Screen 14
-    genCampaignHTML(p).then(html => {
-      if (!html) return;
-      setCampHtml(injectClusterSection(html, p));
-    }).catch(() => { });
+    setDamImages(quickImages);
     setPhase("launchpad");
+
+    // Resolve real brand images in the background (probes site + keyword Unsplash fallback).
+    // When done, update DAM and regenerate campaign HTML with the better images.
+    buildDynamicImages(p)
+      .catch(() => quickImages)
+      .then(imgs => {
+        const finalImgs = imgs?.length ? imgs : quickImages;
+        setDamImages(finalImgs);
+        return genCampaignHTML(p, finalImgs);
+      })
+      .then(html => {
+        if (!html) return;
+        setCampHtml(injectClusterSection(html, p));
+      })
+      .catch(() => {
+        // Fallback: generate campaign HTML with quick images if dynamic resolution failed
+        genCampaignHTML(p, quickImages).then(html => {
+          if (html) setCampHtml(injectClusterSection(html, p));
+        }).catch(() => {});
+      });
   };
 
   const handleRestart = () => {
