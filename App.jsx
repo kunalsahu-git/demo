@@ -1233,16 +1233,16 @@ function Screen7({ p }) {
 
   const faviconUrl = p.url ? `https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(p.url)}` : null;
 
-  // thum.io works as <img src> with no CORS — gives real site front-page screenshots
+  // thum.io works as <img src> with no CORS — siteUrl is the page to screenshot
   const siteCards = [
     { name: ip("{co} Site", p), domain: `${co.toLowerCase().replace(/\s/g, "")}.acquia.site`, isProspect: true },
-    { name: "Valvoline Global",   domain: "valvolineglobal.acquia.site"   },
-    { name: "Sean-POC-grainIng",  domain: "sean-poc-graining.acquia.site" },
-    { name: "DAM Media",          domain: "dammedia.acquia.site"          },
-    { name: "Balzano Demo",       domain: "balzanodemo.acquia.site"       },
-    { name: "Eudaimonia Univ.",   domain: "eudaimonia.acquia.site"        },
-    { name: "Eudaimonia CPG",     domain: "eudaimonia-cpg.acquia.site"    },
-    { name: "TestNova Dev",       domain: "testnova.acquia.site"          },
+    { name: "Valvoline Global", domain: "valvolineglobal.com",  siteUrl: "https://www.valvolineglobal.com/en-in/" },
+    { name: "Eud.ai",           domain: "eud.ai",               siteUrl: "https://www.eud.ai/" },
+    { name: "eBikes DAM",       domain: "ebikesdam.com",        siteUrl: "https://ebikesdam.com/dam/login" },
+    { name: "Starbucks",        domain: "starbucks.com",        siteUrl: "https://www.starbucks.com" },
+    { name: "Salesforce",       domain: "salesforce.com",       siteUrl: "https://www.salesforce.com" },
+    { name: "Shopify",          domain: "shopify.com",          siteUrl: "https://www.shopify.com" },
+    { name: "HubSpot",          domain: "hubspot.com",          siteUrl: "https://www.hubspot.com" },
   ];
 
   return (
@@ -1331,7 +1331,7 @@ function MockSiteThumb({ name }) {
 
 function SiteCard({ card, pc, sc, co, p, faviconUrl }) {
   const [thumbFailed, setThumbFailed] = useState(false);
-  const thumSrc = `https://image.thum.io/get/width/400/crop/200/noanimate/https://${card.domain}`;
+  const thumSrc = `https://image.thum.io/get/width/400/crop/200/noanimate/${card.siteUrl || "https://" + card.domain}`;
 
   const renderThumb = () => {
     if (card.isProspect) return <ProspectSiteThumb p={p} />;
@@ -1579,7 +1579,7 @@ function Screen12({ p, damImages }) {
                 key={i}
                 idx={i}
                 damImages={damImages}
-                keywords={kws}
+                keywords={p.assetKeywords}
                 primary={pc}
                 secondary={sc}
                 selected={i < 4}
