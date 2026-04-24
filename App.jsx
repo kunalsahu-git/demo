@@ -1231,21 +1231,19 @@ function Screen7({ p }) {
   const sc = p.secondaryColor || "#7C3AED";
   const co = p.companyName || "Company";
 
-  // Use the first real image extracted from the prospect's site as their card thumbnail
-  const prospectThumb = (p.imageUrls || [])[0] || null;
+  const prospectScreenshot = p.screenshotUrl || (p.imageUrls || [])[0] || null;
   const faviconUrl = p.url ? `https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(p.url)}` : null;
 
-  // thumbUrl uses curated Unsplash photos matching each site's industry
-  const unsplash = id => `https://images.unsplash.com/photo-${id}?w=400&h=200&fit=crop&auto=format`;
+  // thum.io works as <img src> with no CORS — gives real site front-page screenshots
   const siteCards = [
     { name: ip("{co} Site", p), domain: `${co.toLowerCase().replace(/\s/g, "")}.acquia.site`, isProspect: true },
-    { name: "Valvoline Global",   domain: "valvolineglobal.acquia.site",   thumbUrl: unsplash("1492144534655-ae79c964c9d7") }, // automotive
-    { name: "Sean-POC-grainIng", domain: "sean-poc-graining.acquia.site",  thumbUrl: unsplash("1518770660439-4636190af475") }, // enterprise tech
-    { name: "DAM Media",          domain: "dammedia.acquia.site",           thumbUrl: unsplash("1504639725590-34d0984388bd") }, // digital/tech
-    { name: "Balzano Demo",       domain: "balzanodemo.acquia.site",        thumbUrl: unsplash("1441984904996-e0b6ba687e04") }, // retail/fashion
-    { name: "Eudaimonia Univ.",   domain: "eudaimonia.acquia.site",         thumbUrl: unsplash("1523050854058-8df90110c9f1") }, // education
-    { name: "Eudaimonia CPG",     domain: "eudaimonia-cpg.acquia.site",     thumbUrl: unsplash("1445205170230-053b83016050") }, // lifestyle/retail
-    { name: "TestNova Dev",       domain: "testnova.acquia.site",           thumbUrl: unsplash("1460925895917-afdab827c52f") }, // tech/startup
+    { name: "Valvoline Global",   domain: "valvolineglobal.acquia.site"   },
+    { name: "Sean-POC-grainIng",  domain: "sean-poc-graining.acquia.site" },
+    { name: "DAM Media",          domain: "dammedia.acquia.site"          },
+    { name: "Balzano Demo",       domain: "balzanodemo.acquia.site"       },
+    { name: "Eudaimonia Univ.",   domain: "eudaimonia.acquia.site"        },
+    { name: "Eudaimonia CPG",     domain: "eudaimonia-cpg.acquia.site"    },
+    { name: "TestNova Dev",       domain: "testnova.acquia.site"          },
   ];
 
   return (
@@ -1264,7 +1262,7 @@ function Screen7({ p }) {
         <input placeholder="Search by site label or domain" style={{ border: "1px solid #e5e7eb", borderRadius: 6, padding: "8px 12px", width: 260, fontSize: 12, marginBottom: 20 }} />
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16 }}>
           {siteCards.map((card, i) => (
-            <SiteCard key={i} card={card} pc={pc} sc={sc} co={co} prospectThumb={prospectThumb} faviconUrl={faviconUrl} />
+            <SiteCard key={i} card={card} pc={pc} sc={sc} co={co} prospectScreenshot={prospectScreenshot} faviconUrl={faviconUrl} />
           ))}
         </div>
       </div>
@@ -1272,15 +1270,15 @@ function Screen7({ p }) {
   );
 }
 
-function SiteCard({ card, pc, sc, co, prospectThumb, faviconUrl }) {
+function SiteCard({ card, pc, sc, co, prospectScreenshot, faviconUrl }) {
   const [imgFailed, setImgFailed] = useState(false);
-  const prospectSeed = co.toLowerCase().replace(/\s/g, "");
 
-  // Prospect card: use microlink screenshot or site og:image; fallback to picsum
-  // Static cards: use the curated industry thumbUrl set on the card
+  // Prospect card: use Microlink/thum.io screenshot captured during analysis
+  // Static cards: use thum.io — works as <img src>, no CORS, real front-page screenshot
+  const thumUrl = domain => `https://image.thum.io/get/width/400/crop/200/noanimate/https://${domain}`;
   const thumbSrc = card.isProspect
-    ? (prospectThumb && !imgFailed ? prospectThumb : `https://picsum.photos/seed/${prospectSeed}/400/200`)
-    : (card.thumbUrl || `https://picsum.photos/seed/${card.name.replace(/\s/g, "")}/400/200`);
+    ? (prospectScreenshot && !imgFailed ? prospectScreenshot : thumUrl(card.domain))
+    : (imgFailed ? `https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400&h=200&fit=crop` : thumUrl(card.domain));
 
   return (
     <div style={{ border: card.isProspect ? `2px solid ${pc}` : "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden", boxShadow: card.isProspect ? `0 0 0 3px ${pc}22` : "none" }}>
@@ -1288,7 +1286,7 @@ function SiteCard({ card, pc, sc, co, prospectThumb, faviconUrl }) {
         <img
           src={thumbSrc}
           alt={card.name}
-          onError={card.isProspect ? () => setImgFailed(true) : undefined}
+          onError={() => setImgFailed(true)}
           style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top", display: "block" }}
         />
         {card.isProspect && (
