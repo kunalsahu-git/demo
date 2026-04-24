@@ -35,7 +35,7 @@ const IMAGE_DICT = {
   "automotive": ["1492144534655-ae79c964c9d7", "1503376713356-ab0e19a3b5a7", "1552519507-da3b142c6e3d", "1583123637159-8fa9fbb00d06", "1549317661-bd32c8ce0db2", "1485291571150-772bcfc10ed5", "1533473359331-01d5201cb5c1", "1502877338535-766d1452684c"],
   "education": ["1523050854058-8df90110c9f1", "1509062522246-3755977927d7", "1427504141085-329e55182062", "1524178232363-1ecef6156e0d", "1503676260728-1c00da094a0b", "1434030216411-0b793f4b4173", "1513258496099-481a80fa18c7", "1497633762465-e3dfe56b00c2"],
   "travel & hospitality": ["1436491865332-7a61a3518fdf", "1476514525535-07fb3b4ae5f1", "1501785888041-af3ef285b460", "1445019980597-93e408df3cb2", "1540541338-8c272ef6d8e2", "1566073771259-6a8506099945", "1520260497591-112f2f40a3f4", "1495562569060-2eec283d3391"],
-  "food & beverage": ["1497935586351-b67a49e012bf", "1509042239860-f550ce710b93", "1445116864225-8bafae29a3d1", "1511920170033-f8396924c348", "1498654896293-37aacf113fd9", "1481833761820-0509d32170b7", "1463183547458-6a4a61b8f05a", "1482049142915-eb3c2ab21f64"],
+  "food & beverage": ["1497935586351-b67a49e012bf", "1509042239860-f550ce710b93", "1445116864225-8bafae29a3d1", "1511920170033-f8396924c348", "1495474472359-d3b7e5e59b02", "1442527418522-1d80a7ec3f91", "1461023058943-07fcbe16d735", "1504630083234-14187a9df0f5"],
   "enterprise technology": ["1518770660439-4636190af475", "1504639725590-34d0984388bd", "1550751827-4bd374c3f58b", "1451187580459-43490279c0fa", "1460925895917-afdab827c52f", "1504384308090-c894fdcc538d", "1551288049-bebda4e38f71", "1531297172867-1ea55333fccf"],
   "default": ["1497366216548-37526070297c", "1522071820081-009f0129c71c", "1454165804606-c3d57bc86b40", "1515169061895-373a0e5b0260", "1521737604893-d14cc237f11d", "1507679622140-615266c150fa", "1552664730-d307ca884978", "1531482615713-2defd0a5192b"]
 };
@@ -311,23 +311,54 @@ Return ONLY this JSON (no markdown, no backticks):
   };
 }
 
+function injectClusterSection(html, p) {
+  const titles = (p.contentClusterTitles || []).slice(0, 4);
+  if (!titles.length) return html;
+  const pc = p.primaryColor || "#0076BD";
+  let isDark = false;
+  try { const r=parseInt(pc.slice(1,3),16),g=parseInt(pc.slice(3,5),16),b=parseInt(pc.slice(5,7),16); isDark=.299*r+.587*g+.114*b<60; } catch {}
+  const bg = isDark ? "#111" : "#f8fafc";
+  const cardBg = isDark ? "#1a1a1a" : "#ffffff";
+  const border = isDark ? "#2a2a2a" : "#e5e7eb";
+  const txt = isDark ? "#ffffff" : "#111827";
+  const sub = isDark ? "#888888" : "#6b7280";
+  const types = ["Article","Guide","Report","Deep Dive"];
+  const mins  = ["4 min read","6 min read","5 min read","7 min read"];
+  const section = `
+<section style="background:${bg};padding:72px 48px;">
+  <div style="max-width:1100px;margin:0 auto;">
+    <div style="font-size:11px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:${pc};margin-bottom:10px;">From the Content Studio</div>
+    <h2 style="font-size:30px;font-weight:800;color:${txt};margin-bottom:32px;letter-spacing:-.01em;">AEO-Ready Articles</h2>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">
+      ${titles.map((t,i)=>`<div style="background:${cardBg};border:1px solid ${border};border-top:3px solid ${pc};border-radius:10px;padding:22px;">
+        <div style="font-size:10px;font-weight:700;color:${pc};letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px;">${types[i]}</div>
+        <div style="font-size:14px;font-weight:700;color:${txt};line-height:1.5;margin-bottom:12px;">${t}</div>
+        <div style="font-size:11px;color:${sub};margin-bottom:14px;">${mins[i]}</div>
+        <a href="#" style="font-size:13px;font-weight:700;color:${pc};text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">Read Article &rarr;</a>
+      </div>`).join('')}
+    </div>
+  </div>
+</section>`;
+  return html.replace(/<\/body>/i, section + '</body>');
+}
+
 async function genCampaignHTML(p) {
   const endpoint = import.meta.env.VITE_API_ENDPOINT;
 
-  const siteImages = (p.imageUrls || []).filter(Boolean).slice(0, 6);
   const fallbackImgs = buildKeywordImages(p);
-  // Always blend: real brand images first (for authenticity), keyword images fill the rest
-  const imgs = [...siteImages, ...fallbackImgs].slice(0, 8);
-
-  // Hero: og:image (best brand shot) → Microlink screenshot (real site) → first brand image → keyword
   const ogImage = p.rawMeta?.ogImage;
-  const heroUrl  = ogImage || p.screenshotUrl || imgs[0]
+
+  // og:image is purpose-built for cross-domain embedding (social/OG tags) — always loads.
+  // Other scraped images (srcset, img src) often have CDN hotlink protection and break in iframes.
+  // → Hero/bg: use og:image (real brand shot) → Microlink screenshot → curated keyword image
+  // → Cards: always use curated Unsplash (guaranteed to load, industry-matched)
+  const heroUrl  = ogImage || p.screenshotUrl
+    || fallbackImgs[0]
     || `https://picsum.photos/seed/${encodeURIComponent(p.companyName||'co')}0/1400/900`;
-  // Cards: use actual brand images where available
-  const card1Url = imgs[1] || imgs[0] || heroUrl;
-  const card2Url = imgs[2] || imgs[1] || heroUrl;
-  const card3Url = imgs[3] || imgs[2] || heroUrl;
-  const bgUrl    = imgs[4] || imgs[1] || heroUrl;
+  const card1Url = fallbackImgs[0];
+  const card2Url = fallbackImgs[1];
+  const card3Url = fallbackImgs[2];
+  const bgUrl    = ogImage || fallbackImgs[3];
 
   const isDarkBrand = (() => {
     try {
@@ -1533,7 +1564,7 @@ function Screen11({ p }) {
 
 // Filenames that match each IMAGE_DICT industry's actual photo content
 const DAM_FILE_LABELS = {
-  "food & beverage":       ["iced-coffee-cup","latte-art-craft","espresso-portafilter","coffee-bean-closeup","cafe-morning-setup","cold-brew-pour","pour-over-detail","seasonal-hot-drink"],
+  "food & beverage":       ["iced-coffee-cup","latte-art-craft","espresso-portafilter","coffee-bean-closeup","overhead-black-coffee","coffee-beans-scoop","pour-over-drip","cafe-interior-warmth"],
   "retail & commerce":     ["product-hero-shot","brand-campaign-visual","store-lifestyle","new-collection-drop","fashion-editorial","brand-packshot","retail-moment","campaign-asset"],
   "healthcare & wellness": ["patient-digital-care","clinical-technology","wellness-moment","healthcare-team","medical-innovation","patient-experience","telehealth-session","care-pathway"],
   "financial services":    ["digital-banking-app","wealth-management","fintech-interface","investment-growth","banking-mobile","financial-advisor","secure-transaction","market-insights"],
@@ -2319,7 +2350,10 @@ export default function App() {
     // DAM always uses curated IMAGE_DICT images so filenames always match what's displayed
     setDamImages(buildKeywordImages(p));
     // Start campaign HTML generation immediately — no delay — so it's ready well before Screen 14
-    genCampaignHTML(p).then(html => html && setCampHtml(html)).catch(() => { });
+    genCampaignHTML(p).then(html => {
+      if (!html) return;
+      setCampHtml(injectClusterSection(html, p));
+    }).catch(() => { });
     setPhase("launchpad");
   };
 
