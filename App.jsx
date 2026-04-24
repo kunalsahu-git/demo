@@ -314,17 +314,20 @@ Return ONLY this JSON (no markdown, no backticks):
 async function genCampaignHTML(p) {
   const endpoint = import.meta.env.VITE_API_ENDPOINT;
 
-  const siteImages = (p.imageUrls || []).slice(0, 6);
+  const siteImages = (p.imageUrls || []).filter(Boolean).slice(0, 6);
   const fallbackImgs = buildKeywordImages(p);
-  const imgs = siteImages.length >= 4 ? siteImages : [...siteImages, ...fallbackImgs].slice(0, 6);
-  // Priority: og:image (highest-res brand asset) → scraped site image → screenshot → picsum
+  // Always blend: real brand images first (for authenticity), keyword images fill the rest
+  const imgs = [...siteImages, ...fallbackImgs].slice(0, 8);
+
+  // Hero: og:image (best brand shot) → Microlink screenshot (real site) → first brand image → keyword
   const ogImage = p.rawMeta?.ogImage;
-  const heroUrl  = ogImage || imgs[0] || p.screenshotUrl
+  const heroUrl  = ogImage || p.screenshotUrl || imgs[0]
     || `https://picsum.photos/seed/${encodeURIComponent(p.companyName||'co')}0/1400/900`;
-  const card1Url = imgs[1] || `https://picsum.photos/seed/${encodeURIComponent(p.companyName||'co')}1/600/400`;
-  const card2Url = imgs[2] || `https://picsum.photos/seed/${encodeURIComponent(p.companyName||'co')}2/600/400`;
-  const card3Url = imgs[3] || `https://picsum.photos/seed/${encodeURIComponent(p.companyName||'co')}3/600/400`;
-  const bgUrl    = imgs[4] || heroUrl;
+  // Cards: use actual brand images where available
+  const card1Url = imgs[1] || imgs[0] || heroUrl;
+  const card2Url = imgs[2] || imgs[1] || heroUrl;
+  const card3Url = imgs[3] || imgs[2] || heroUrl;
+  const bgUrl    = imgs[4] || imgs[1] || heroUrl;
 
   const isDarkBrand = (() => {
     try {
@@ -355,8 +358,9 @@ BRAND TOKENS:
 - Campaign: ${p.campaignDescription}
 - Products: ${p.products?.join(", ")}
 
-IMAGE URLS — copy these strings EXACTLY into your HTML (do not shorten or rename them):
-• Hero background  → "${heroUrl}"
+BRAND IMAGERY — these are real photos extracted from ${co}'s own website. Use them to make the page feel authentically on-brand (like a real ${co} page, not a generic template).
+Copy these strings EXACTLY into your HTML — do not shorten, rename, or substitute them:
+• Hero background  → "${heroUrl}"   ← the brand's primary visual — make the hero feel alive
 • Card 1 image     → "${card1Url}"
 • Card 2 image     → "${card2Url}"
 • Card 3 image     → "${card3Url}"
@@ -1529,7 +1533,7 @@ function Screen11({ p }) {
 
 // Filenames that match each IMAGE_DICT industry's actual photo content
 const DAM_FILE_LABELS = {
-  "food & beverage":       ["iced-coffee-cup","barista-crafting-drink","fresh-pastry-display","coffee-beans-roasted","cafe-morning-light","latte-art-pour","espresso-closeup","seasonal-beverage"],
+  "food & beverage":       ["iced-coffee-cup","latte-art-craft","espresso-portafilter","coffee-bean-closeup","cafe-morning-setup","cold-brew-pour","pour-over-detail","seasonal-hot-drink"],
   "retail & commerce":     ["product-hero-shot","brand-campaign-visual","store-lifestyle","new-collection-drop","fashion-editorial","brand-packshot","retail-moment","campaign-asset"],
   "healthcare & wellness": ["patient-digital-care","clinical-technology","wellness-moment","healthcare-team","medical-innovation","patient-experience","telehealth-session","care-pathway"],
   "financial services":    ["digital-banking-app","wealth-management","fintech-interface","investment-growth","banking-mobile","financial-advisor","secure-transaction","market-insights"],
@@ -2312,10 +2316,8 @@ export default function App() {
       p = fallbackProspect(url);
     }
     setProspect(p);
-    const siteImages = p.imageUrls || [];
-    const kwImages = buildKeywordImages(p);
-    // Always put company-specific scraped images first so Nestle never shows Starbucks images
-    setDamImages([...siteImages, ...kwImages].slice(0, 8));
+    // DAM always uses curated IMAGE_DICT images so filenames always match what's displayed
+    setDamImages(buildKeywordImages(p));
     // Start campaign HTML generation immediately — no delay — so it's ready well before Screen 14
     genCampaignHTML(p).then(html => html && setCampHtml(html)).catch(() => { });
     setPhase("launchpad");
