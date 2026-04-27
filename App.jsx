@@ -110,6 +110,36 @@ const IMAGE_DICT = {
     "1460925895917-afdab827c52f", // laptop minimal
     "1573164713988-8665fc963095"  // cloud/server room
   ],
+  "sports & fitness": [
+    "1571019614242-c5c5dee9f50b", // runner athlete
+    "1552674605-db5fecabfe65",    // gym weights
+    "1526506118085-60ce8714f8c5", // sports track
+    "1517836369-d38317a68931",    // marathon runner
+    "1534438327-41d1f4b7a3c5",    // fitness training
+    "1576678927-39d88614b562",    // gym interior
+    "1565728744382-61accd4c7d68", // gym equipment
+    "1549060279-7e168fcee0c2"     // sports action
+  ],
+  "beauty & cosmetics": [
+    "1596462502278-27bfdc9c3a08", // skincare products flatlay
+    "1522335789-8b0f9756c58c",    // makeup artist
+    "1487412947147-5cebf100ffc2", // beauty products
+    "1560472354-b33ff0ad4a99",    // cosmetics closeup
+    "1598440947619-2c35fc9aa181", // skincare routine
+    "1512496015851-a90fb38ba796", // makeup brushes
+    "1571781926291-c77da103c28b", // perfume bottle
+    "1556228720-195a672e8a03"     // beauty portrait
+  ],
+  "luxury & accessories": [
+    "1523170335258-f6a30a7a5f63", // luxury watch
+    "1547996160-2ab28cc6a5f5",    // watch detail closeup
+    "1524592094714-0f0654e359b1", // jewelry flatlay
+    "1506630448831-5a1b83c5a67e", // luxury lifestyle
+    "1485290334039-a3b97f0b7ef4", // watch on wrist
+    "1611591437281-460bfbe1220a", // premium timepiece
+    "1492707892479-7bc8d5a4ee93", // accessories editorial
+    "1513909120847-11bdf8e3fcab"  // luxury detail
+  ],
   "default": [
     "1497366216548-37526070297c", // open office
     "1522071820081-009f0129c71c", // team meeting
@@ -167,6 +197,27 @@ const detectIndustry = url => {
     contentClusterTitles: ["The Future of Digital Banking: What Customers Expect in 2026", "How Open Banking APIs Are Unlocking New Revenue Streams", "Digital Wealth Management: A Guide for Modern Investors", "Why Financial Institutions Are Prioritizing Personalized Digital Experiences"]
   };
 
+  if (/(sport|fitness|gym|athlet|workout|yoga|decathlon|puma|reebok|running|activewear|cricket|football|soccer|tennis)/.test(d)) return {
+    industry: "sports & fitness", products: ["Performance Gear", "Training Apparel", "Sport Accessories"],
+    campaignName: "Peak Performance Campaign", campaignDescription: "Inspiring athletes at every level with gear engineered for performance and style.",
+    urgentCampaignTrigger: "A major sporting event created an immediate window to reach our core audience",
+    assetKeywords: ["athlete training action", "sports performance gear", "fitness lifestyle", "active outdoor"],
+    contentClusterTitles: ["Training Like a Pro: The Gear That Makes the Difference", "5 Workouts to Elevate Your Performance This Season", "The Science Behind High-Performance Sportswear", "Why Athletes Are Switching to Smarter Training Tools"]
+  };
+  if (/(beauty|cosmetic|skincare|makeup|nykaa|salon|sephora|loreal|fragrance|perfume|serum|lipstick)/.test(d)) return {
+    industry: "beauty & cosmetics", products: ["Skincare Collection", "Makeup Line", "Fragrance Range"],
+    campaignName: "Glow Up Campaign", campaignDescription: "Celebrating confidence and self-expression through premium beauty innovations.",
+    urgentCampaignTrigger: "A trending beauty moment on social media created an immediate launch opportunity",
+    assetKeywords: ["skincare product lifestyle", "makeup editorial beauty", "cosmetics flatlay", "beauty portrait glow"],
+    contentClusterTitles: ["Your Ultimate Skincare Routine for Radiant Skin", "The 10 Beauty Trends Dominating 2026", "How to Build a Minimalist Makeup Kit That Works", "Behind the Formula: How We Develop Our Skincare Products"]
+  };
+  if (/(watch|jewel|accessory|accessories|jeweller|jewellery|fastrack|titan|tanishq|rolex|timepiece|diamond)/.test(d)) return {
+    industry: "luxury & accessories", products: ["Watch Collection", "Jewellery Line", "Accessories Range"],
+    campaignName: "Iconic Collection Launch", campaignDescription: "Unveiling our most refined collection — crafted for those who wear their story.",
+    urgentCampaignTrigger: "A flagship seasonal gifting window opened earlier than expected",
+    assetKeywords: ["luxury watch detail", "jewelry editorial", "accessories lifestyle premium", "timepiece closeup"],
+    contentClusterTitles: ["The Art of Gifting: Our Most Iconic Pieces for 2026", "Craftsmanship Spotlight: How Our Watches Are Made", "Style Guide: Pairing Accessories for Every Occasion", "The Story Behind Our New Iconic Collection"]
+  };
   // Added nike, adidas, shoe, apparel, etc. here so it defaults correctly to Retail
   if (/(retail|shop|store|fashion|apparel|cloth|brand|luxury|beauty|cosmetic|nike|adidas|shoe|wear)/.test(d)) return {
     industry: "retail & commerce", products: ["Digital Storefront", "Loyalty & Rewards", "Brand Experience Hub"],
@@ -398,6 +449,8 @@ Return ONLY this JSON (no markdown, no backticks):
     ...JSON.parse(match[0]),
     url,
     screenshotUrl,
+    // true = Microlink rendered a real page; false = thumFallback (often shows error/block pages)
+    screenshotFromMicrolink: !!mlData.screenshot,
     imageUrls: allImages,
     mlMainImage: mlData.mainImage,
     mlPageImages: mlData.images,
@@ -436,24 +489,27 @@ function injectClusterSection(html, p) {
   return html.replace(/<\/body>/i, section + '</body>');
 }
 
-async function genCampaignHTML(p, resolvedImages) {
+async function genCampaignHTML(p, resolvedImages, cardImages) {
   const endpoint = import.meta.env.VITE_API_ENDPOINT;
 
-  // Use dynamically resolved images if available, otherwise fall back to curated IDs
-  const fallbackImgs = resolvedImages?.length ? resolvedImages : buildKeywordImages(p);
+  // cardImages are pre-fetched by handleStart (shared with DAM) — avoids a second Unsplash API
+  // call and ensures DAM and campaign page show consistent, relevant images.
+  const kwImgs = cardImages?.length >= 4 ? cardImages
+    : await fetchKeywordImages(p.assetKeywords, p.industry, 8).catch(() => buildKeywordImages(p));
   const ogImage = p.rawMeta?.ogImage;
 
-  // og:image is purpose-built for cross-domain embedding (social/OG tags) — always loads.
-  // Other scraped images (srcset, img src) often have CDN hotlink protection and break in iframes.
-  // → Hero/bg: use og:image (real brand shot) → Microlink screenshot → curated keyword image
-  // → Cards: always use curated Unsplash (guaranteed to load, industry-matched)
-  const heroUrl  = ogImage || p.screenshotUrl
-    || fallbackImgs[0]
+  // Hero: prefer og:image (designed for embedding), fall back to Unsplash keyword image.
+  // Intentionally skip p.screenshotUrl — a full-page Microlink screenshot looks terrible
+  // as a hero background (wrong dimensions, contains full page chrome, hotlink issues).
+  // Cards/bg: always use curated Unsplash — scraped site images fail inside iframe srcDoc
+  // due to CDN referer checks that block cross-origin iframe contexts.
+  const heroUrl  = ogImage || kwImgs[0]
     || `https://picsum.photos/seed/${encodeURIComponent(p.companyName||'co')}0/1400/900`;
-  const card1Url = fallbackImgs[0];
-  const card2Url = fallbackImgs[1];
-  const card3Url = fallbackImgs[2];
-  const bgUrl    = ogImage || fallbackImgs[3];
+  const card1Url = kwImgs[0];
+  const card2Url = kwImgs[1];
+  const card3Url = kwImgs[2];
+  // bgUrl: Unsplash images are reliable inside iframe — og:image might have hotlink issues
+  const bgUrl    = kwImgs[3] || kwImgs[0];
 
   const isDarkBrand = (() => {
     try {
@@ -499,9 +555,9 @@ ${clusterTitles.map((t, i) => `Article ${i + 1}: "${t}" — ${readTimes[i]}`).jo
 
 REQUIRED SECTIONS (in order):
 1. <nav> sticky, ${isDarkBrand ? "background:#111" : `background:${pc}`}, ${co} logo (bold, white), nav links, CTA button
-2. <section id="hero"> height:100vh, background-image:url("${heroUrl}") center/cover no-repeat, overlay rgba(0,0,0,${isDarkBrand ? "0.55" : "0.4"}), centered white text: huge headline (${isDarkBrand ? "font-weight:900;text-transform:uppercase;font-size:clamp(48px,8vw,96px)" : "font-weight:800;font-size:clamp(40px,6vw,72px)"}), subtext, two CTA buttons
-3. <section id="products"> ${isDarkBrand ? "background:#000" : "background:#f9fafb"}, 3 cards side by side, each card has <img src="CARD_URL" style="width:100%;height:220px;object-fit:cover"> at top, product name, description below
-4. <section id="showcase"> full-width, background-image:url("${bgUrl}") center/cover, dark overlay, bold centered text, stat numbers
+2. <section id="hero"> height:100vh, background-image:url("${heroUrl}") center/cover no-repeat, overlay rgba(0,0,0,${isDarkBrand ? "0.65" : "0.62"}), centered white text: huge headline (${isDarkBrand ? "font-weight:900;text-transform:uppercase;font-size:clamp(48px,8vw,96px)" : "font-weight:800;font-size:clamp(40px,6vw,72px)"}), subtext, two CTA buttons
+3. <section id="products"> ${isDarkBrand ? "background:#000" : "background:#f9fafb"}, 3 cards side by side in a CSS grid (grid-template-columns:repeat(3,1fr)). Card 1: <img src="${card1Url}" style="display:block;width:100%;height:220px;object-fit:cover">, then product name + description. Card 2: <img src="${card2Url}" style="display:block;width:100%;height:220px;object-fit:cover">, then product name + description. Card 3: <img src="${card3Url}" style="display:block;width:100%;height:220px;object-fit:cover">, then product name + description. ALL 3 cards must be present and use the exact URLs above.
+4. <section id="showcase"> full-width, background-image:url("${bgUrl}") center/cover, overlay rgba(0,0,0,0.65), bold centered white text, stat numbers
 5. <section id="insights"> ${isDarkBrand ? "background:#111;color:#fff" : "background:#f9fafb"}, heading "From the Content Studio" (left-aligned, bold), 4-column article card grid. Each card: top accent bar (4px, ${pc}), article title from the content cluster above (font-weight:600, font-size:15px), read-time badge (small pill, ${isDarkBrand ? "background:#222;color:#aaa" : "background:#e5e7eb;color:#6b7280"}), "Read Article" text-link (href="#", color:${pc}, font-weight:600, no underline by default, underline on hover). Cards: ${isDarkBrand ? "background:#1a1a1a;border:1px solid #333" : "background:#fff;border:1px solid #e5e7eb"}, border-radius:10px, padding:20px. No images in this section.
 6. <section id="register"> ${isDarkBrand ? "background:#111" : `background:${pc}`}, email input + submit button, centered layout
 7. <footer> dark background, ${co} name, nav links, copyright
@@ -627,14 +683,16 @@ function BrandedMockup({ p }) {
       <div style={{ flex: 1, background: isDark ? "#000" : "#f9fafb", padding: "40px 48px", overflow: "hidden" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20 }}>
           {(p.products || ["Product 1","Product 2","Product 3"]).slice(0, 3).map((prod, i) => {
-            const cardImg = (p.imageUrls || [])[i + 1];
+            // Never use scraped imageUrls here — they contain marketing text baked in.
+            // Always show the clean branded gradient placeholder with product initial.
+            const cardImg = null;
             return (
               <div key={i} style={{ background: isDark ? "#111" : "#fff", borderRadius: isDark ? 4 : 12, overflow: "hidden", border: isDark ? "1px solid #222" : "1px solid #e5e7eb" }}>
                 {cardImg ? (
                   <div style={{ height: 140, background: `url(${cardImg}) center/cover`, flexShrink: 0 }} />
                 ) : (
-                  <div style={{ height: 120, background: isDark ? `linear-gradient(135deg,#222,#333)` : `linear-gradient(135deg,${pc}22,${sc}22)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32 }}>
-                    {["👟","⚡","🏆"][i]}
+                  <div style={{ height: 120, background: isDark ? `linear-gradient(135deg,#222,#333)` : `linear-gradient(135deg,${pc}22,${sc}22)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <span style={{ fontSize: 22, fontWeight: 800, color: isDark ? "rgba(255,255,255,0.25)" : `${pc}55`, letterSpacing: "-0.02em" }}>{(prod || "?")[0]}</span>
                   </div>
                 )}
                 <div style={{ padding: "16px 18px" }}>
@@ -661,6 +719,9 @@ function buildKeywordImages(p) {
     "automotive":            ["auto","car","vehicle","motor","drive","fleet","electric"],
     "education":             ["edu","university","college","school","learn","academ"],
     "travel & hospitality":  ["travel","hotel","hospit","resort","airline","tourism"],
+    "sports & fitness":      ["sport","fitness","gym","athlet","workout","yoga","running","activewear","cricket","football","soccer","tennis","badminton","cycling","swim","puma","reebok","decathlon"],
+    "beauty & cosmetics":    ["beauty","cosmetic","skincare","makeup","skin care","nykaa","salon","sephora","loreal","serum","lipstick","mascara","fragrance","perfume"],
+    "luxury & accessories":  ["watch","jewel","accessory","accessories","jeweller","jewellery","fastrack","titan","tanishq","rolex","timepiece","diamond","gemstone","luxury brand"],
     "retail & commerce":     ["retail","shop","commerce","ecommerce","e-commerce","fashion","apparel","store","brand","product"],
     "enterprise technology": ["tech","software","platform","saas","digital","enterprise","cloud","ai","data"],
   };
@@ -698,32 +759,30 @@ function probeImages(urls, maxGood = 5, timeoutMs = 5000) {
 async function fetchKeywordImages(assetKeywords, industry, count = 8) {
   const accessKey = import.meta.env.VITE_UNSPLASH_ACCESS_KEY;
 
-  // If Unsplash API key is configured: proper search returning stable CDN URLs
   if (accessKey) {
-    try {
-      const query = (assetKeywords.slice(0, 3).join(" ") || industry || "business")
-        .replace(/['"]/g, "").trim();
-      const res = await fetch(
-        `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=${count}&orientation=landscape`,
-        { headers: { Authorization: `Client-ID ${accessKey}` }, signal: AbortSignal.timeout(8000) }
-      );
-      const data = await res.json();
-      if (data.results?.length) {
-        return data.results.map(r => r.urls.regular);
-      }
-    } catch { /* fall through */ }
+    // Try assetKeywords[0] first (most specific), then industry as fallback query.
+    // assetKeywords[0] can be too brand/geo-specific (e.g. "Indian athlete sprinting on track")
+    // and return < 4 results — industry name (e.g. "Athletic Footwear") is a reliable backup.
+    const queries = [assetKeywords?.[0], industry]
+      .filter(Boolean)
+      .map(q => q.replace(/['"]/g, "").trim());
+
+    for (const query of queries) {
+      try {
+        const res = await fetch(
+          `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=${count}&orientation=landscape`,
+          { headers: { Authorization: `Client-ID ${accessKey}` }, signal: AbortSignal.timeout(8000) }
+        );
+        const data = await res.json();
+        if (data.results?.length >= 4) {
+          return data.results.map(r => r.urls.regular);
+        }
+      } catch { /* try next query */ }
+    }
   }
 
-  // source.unsplash.com keyword redirect (no API key needed — works as img src)
-  if (assetKeywords.length) {
-    return assetKeywords.slice(0, count).map((kw, i) => {
-      const term = encodeURIComponent(kw.split(" ").slice(0, 4).join(","));
-      // sig= makes each slot fetch a distinct photo even for similar keywords
-      return `https://source.unsplash.com/800x600/?${term}&sig=${i}`;
-    });
-  }
-
-  // Last resort: curated hardcoded IDs by industry
+  // Fallback: curated hardcoded IDs by industry — guaranteed unique, always loads.
+  // source.unsplash.com is intentionally omitted (deprecated, returns duplicate/wrong images).
   return buildKeywordImages({ industry }).slice(0, count);
 }
 
@@ -1072,8 +1131,8 @@ const FALLBACK_IDS = [
 ];
 
 function AssetCard({ idx, damImages, keywords, primary, secondary, selected, fileName }) {
-  const [errCount, setErrCount] = useState(0);
   const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   const kw = keywords?.[idx % (keywords?.length || 1)] || "asset";
   const cols = [primary, secondary, primary, secondary, secondary, primary, secondary, primary];
@@ -1081,12 +1140,8 @@ function AssetCard({ idx, damImages, keywords, primary, secondary, selected, fil
   const col2 = cols[(idx + 1) % cols.length] || secondary || "#7C3AED";
   const name = fileName || `${kw.toLowerCase().replace(/ /g, "-")}-${2400 + idx * 137}.jpg`;
 
-  const currentSrc = damImages && damImages.length > 0 && errCount < damImages.length
-    ? damImages[(idx + errCount) % damImages.length]
-    : null;
-
-  // Always show a styled placeholder — never broken emoji
-  const showPlaceholder = !currentSrc || (currentSrc && !loaded && errCount >= damImages?.length);
+  // Direct index — no retry cycling that causes duplicates across cards
+  const currentSrc = damImages?.[idx] || null;
 
   return (
     <div style={{ background: "#fff", border: selected ? `2px solid ${primary}` : "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden", cursor: "pointer" }}>
@@ -1097,13 +1152,13 @@ function AssetCard({ idx, damImages, keywords, primary, secondary, selected, fil
           <div style={{ width: 32, height: 1, background: "rgba(255,255,255,0.4)" }} />
           <div style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", fontWeight: 500 }}>{name.split("-").slice(-1)[0]}</div>
         </div>
-        {/* Real image on top — fades in if it loads */}
-        {currentSrc && (
+        {/* Real image on top — fades in if it loads, falls back to gradient on error */}
+        {currentSrc && !failed && (
           <img
             src={currentSrc}
             alt={kw}
             onLoad={() => setLoaded(true)}
-            onError={() => { setErrCount(c => c + 1); setLoaded(false); }}
+            onError={() => setFailed(true)}
             style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: loaded ? 1 : 0, transition: "opacity 0.4s" }}
           />
         )}
@@ -1246,8 +1301,10 @@ function Screen4({ p }) {
   const [ann2, setAnn2] = useState(false);
   const [screenshotFailed, setScreenshotFailed] = useState(false);
 
-  // Use the exact same screenshot URL that was fed into Claude Vision during analysis
-  const screenshotUrl = p.screenshotUrl || null;
+  // Only use the screenshot if Microlink successfully rendered the real page.
+  // If Microlink was blocked (access denied, Cloudflare, etc.), screenshotFromMicrolink=false
+  // and screenshotUrl is the thum.io fallback which often shows an error/block page.
+  const screenshotUrl = p.screenshotFromMicrolink ? p.screenshotUrl : null;
 
   useEffect(() => {
     const t1 = setTimeout(() => setScanDone(true), 1200);
@@ -1759,6 +1816,9 @@ const DAM_FILE_LABELS = {
   "education":             ["campus-life","learning-experience","student-success","digital-classroom","research-lab","graduation-day","academic-excellence","future-ready"],
   "travel & hospitality":  ["destination-hero","luxury-property","guest-experience","travel-lifestyle","hotel-amenities","adventure-moment","booking-journey","loyalty-reward"],
   "enterprise technology": ["platform-dashboard","team-collaboration","cloud-infrastructure","data-insights","product-launch","enterprise-workflow","ai-analytics","digital-transformation"],
+  "sports & fitness":      ["athlete-in-motion","training-session","gym-performance","race-day-hero","fitness-lifestyle","sport-action-shot","team-performance","active-lifestyle"],
+  "beauty & cosmetics":    ["skincare-hero","makeup-editorial","product-flatlay","beauty-portrait","routine-moment","cosmetics-closeup","fragrance-campaign","glow-up-campaign"],
+  "luxury & accessories":  ["watch-hero-shot","jewelry-editorial","accessory-lifestyle","timepiece-detail","luxury-campaign","product-closeup","brand-aesthetic","collection-launch"],
   "default":               ["brand-hero-shot","campaign-visual","product-lifestyle","team-collaboration","digital-experience","customer-moment","brand-identity","marketing-asset"],
 };
 
@@ -1775,6 +1835,9 @@ function Screen12({ p, damImages }) {
     "automotive":            ["auto","car","vehicle","motor","drive","fleet","electric"],
     "education":             ["edu","university","college","school","learn","academ"],
     "travel & hospitality":  ["travel","hotel","hospit","resort","airline","tourism"],
+    "sports & fitness":      ["sport","fitness","gym","athlet","workout","yoga","running","activewear","cricket","football","soccer","tennis","badminton","cycling","swim","puma","reebok","decathlon"],
+    "beauty & cosmetics":    ["beauty","cosmetic","skincare","makeup","skin care","nykaa","salon","sephora","loreal","serum","lipstick","mascara","fragrance","perfume"],
+    "luxury & accessories":  ["watch","jewel","accessory","accessories","jeweller","jewellery","fastrack","titan","tanishq","rolex","timepiece","diamond","gemstone","luxury brand"],
     "retail & commerce":     ["retail","shop","commerce","ecommerce","e-commerce","fashion","apparel","store","brand","product"],
     "enterprise technology": ["tech","software","platform","saas","digital","enterprise","cloud","ai","data"],
   };
@@ -1894,7 +1957,7 @@ function Screen13({ p }) {
 }
 
 // ── SCREEN 14 ─────────────────────────────────────────────────────────────────
-function Screen14({ p, campHtml }) {
+function Screen14({ p, campHtml, damImages }) {
   const pc = p.primaryColor || "#0076BD";
   const sc = p.secondaryColor || "#7C3AED";
   const [view, setView] = useState("campaign");
@@ -1913,6 +1976,7 @@ function Screen14({ p, campHtml }) {
     const titles = p.contentClusterTitles || [];
     const bg = isDark ? "#000" : "#fff";
     const text = isDark ? "#fff" : "#111";
+    const cardImgs = damImages?.length >= 3 ? damImages : [];
     const navBg = isDark ? "#111" : pc;
     const heroGrad = isDark
       ? `linear-gradient(135deg, #111 0%, #1a1a1a 100%)`
@@ -1959,7 +2023,7 @@ nav{background:${navBg};position:sticky;top:0;z-index:100;display:flex;align-ite
 .section-label{font-size:11px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:${accent};margin-bottom:16px;}
 .section h2{font-size:${isDark?'48':'36'}px;font-weight:900;color:${text};margin-bottom:${isDark?'48':'40'}px;text-transform:${isDark?'uppercase':'none'};letter-spacing:${isDark?'-.02em':'-.01em'};}
 .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:${isDark?'2px':'24px'};}
-.card{background:${cardBg};${isDark?'':'border:1px solid '+cardBorder+';border-radius:12px;'}padding:${isDark?'32px':'28px'};${isDark?'border-top:2px solid '+accent+';':''}}
+.card{background:${cardBg};${isDark?'':'border:1px solid '+cardBorder+';border-radius:12px;'}overflow:hidden;${isDark?'border-top:2px solid '+accent+';':''}}
 .card-num{font-size:11px;font-weight:700;color:${accent};letter-spacing:.1em;text-transform:uppercase;margin-bottom:12px;}
 .card h3{font-size:${isDark?'18':'17'}px;font-weight:800;color:${cardText};margin-bottom:10px;text-transform:${isDark?'uppercase':'none'};letter-spacing:${isDark?'.05em':'0'};}
 .card p{font-size:13px;color:${cardSub};line-height:1.6;}
@@ -2012,13 +2076,16 @@ footer{background:${isDark?'#111':'#111827'};color:#fff;padding:48px;${isDark?'b
     <div class="section-label">Featured ${isDark?'Collection':'Solutions'}</div>
     <h2>${isDark?'BUILT FOR PERFORMANCE':'Core Products & Services'}</h2>
     <div class="cards">
-      ${prods.slice(0,3).map((prod,i)=>`
-      <div class="card">
-        <div class="card-num">0${i+1}</div>
-        <h3>${prod}</h3>
-        <p>${isDark?`Engineered for athletes. Built for the future of ${ind}.`:`Purpose-built for modern ${ind} teams — delivering measurable impact from day one.`}</p>
-        <div style="margin-top:20px;font-size:12px;font-weight:700;color:${accent};letter-spacing:.08em;cursor:pointer;text-transform:${isDark?'uppercase':'none'}">${isDark?'SHOP NOW →':'Explore →'}</div>
-      </div>`).join('')}
+      ${prods.slice(0,3).map((prod,i)=>{const img=cardImgs[i];return`
+      <div class="card" style="padding:0;overflow:hidden;">
+        ${img?`<img src="${img}" alt="${prod}" style="display:block;width:100%;height:200px;object-fit:cover;">`:`<div style="height:120px;background:${isDark?'linear-gradient(135deg,#222,#333)':`linear-gradient(135deg,${pc}22,${sc}22)`};display:flex;align-items:center;justify-content:center;"><span style="font-size:22px;font-weight:800;color:${isDark?'rgba(255,255,255,0.25)':`${pc}55`}">${(prod||'?')[0]}</span></div>`}
+        <div style="padding:20px 24px;">
+          <div style="font-size:11px;font-weight:700;color:${accent};letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;">0${i+1}</div>
+          <h3 style="font-size:${isDark?'16':'17'}px;font-weight:800;color:${cardText};margin-bottom:8px;text-transform:${isDark?'uppercase':'none'};letter-spacing:${isDark?'.05em':'0'}">${prod}</h3>
+          <p style="font-size:13px;color:${cardSub};line-height:1.6;">${isDark?`Engineered for athletes. Built for the future of ${ind}.`:`Purpose-built for modern ${ind} teams — delivering measurable impact from day one.`}</p>
+          <div style="margin-top:16px;font-size:12px;font-weight:700;color:${accent};letter-spacing:.08em;cursor:pointer;text-transform:${isDark?'uppercase':'none'}">${isDark?'SHOP NOW →':'Explore →'}</div>
+        </div>
+      </div>`}).join('')}
     </div>
   </div>
 </div>
@@ -2107,19 +2174,12 @@ ${titles.length ? `
         </div>
         <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
           {view === "campaign" ? (
-            campHtml ? (
-              <iframe
-                srcDoc={campHtml}
-                sandbox="allow-scripts allow-same-origin"
-                style={{ width: "100%", height: "100%", border: "none" }}
-                title="campaign page"
-              />
-            ) : (
-              <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, background: "#f9fafb" }}>
-                <div style={{ width: 36, height: 36, border: "3px solid #e5e7eb", borderTop: "3px solid #2563EB", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
-                <div style={{ fontSize: 13, color: "#6b7280", fontWeight: 500 }}>Generating {ip("{ca}", p)} campaign page…</div>
-              </div>
-            )
+            <iframe
+              srcDoc={campHtml || buildCampaignPage()}
+              sandbox="allow-scripts allow-same-origin"
+              style={{ width: "100%", height: "100%", border: "none" }}
+              title="campaign page"
+            />
           ) : (
             <iframe src={p.url} style={{ width: "100%", height: "100%", border: "none" }} title="original site" />
           )}
@@ -2240,7 +2300,7 @@ function DemoShell({ p, campHtml, damImages, selectedScreens, onRestart }) {
         {cur === 10 && <Screen11 p={p} />}
         {cur === 11 && <Screen12 p={p} damImages={damImages} />}
         {cur === 12 && <Screen13 p={p} />}
-        {cur === 13 && <Screen14 p={p} campHtml={campHtml} />}
+        {cur === 13 && <Screen14 p={p} campHtml={campHtml} damImages={damImages} />}
         <HotspotOverlay hs={hs} p={p} onNext={next} onBack={prev} cur={idx} total={total} />
       </div>
       <div style={{ position: "fixed", bottom: 16, right: 16, display: "flex", gap: 8, alignItems: "center", zIndex: 200 }}>
@@ -2534,28 +2594,27 @@ export default function App() {
       p = fallbackProspect(url);
     }
 
-    // Set quick curated fallback immediately so the DAM page has something to show
-    const quickImages = buildKeywordImages(p);
+    // Show hardcoded industry images immediately — sync, reliable, no waiting.
+    const damImgs = buildKeywordImages(p);
     setProspect(p);
-    setDamImages(quickImages);
+    setDamImages(damImgs);
     setPhase("launchpad");
 
-    // Resolve real brand images in the background (probes site + keyword Unsplash fallback).
-    // When done, update DAM and regenerate campaign HTML with the better images.
-    buildDynamicImages(p)
-      .catch(() => quickImages)
-      .then(imgs => {
-        const finalImgs = imgs?.length ? imgs : quickImages;
-        setDamImages(finalImgs);
-        return genCampaignHTML(p, finalImgs);
-      })
-      .then(html => {
-        if (!html) return;
-        setCampHtml(injectClusterSection(html, p));
+    // Fetch fresh keyword images ONCE — shared with both DAM and campaign HTML cards.
+    // Avoids double Unsplash API calls and ensures both screens show the same relevant images.
+    fetchKeywordImages(p.assetKeywords, p.industry, 8)
+      .catch(() => damImgs)
+      .then(freshImgs => {
+        const cardImgs = freshImgs?.length >= 4 ? freshImgs : damImgs;
+        setDamImages(cardImgs);
+        // Campaign HTML pipeline — hero uses real brand images, cards use shared keyword images.
+        return buildDynamicImages(p)
+          .catch(() => cardImgs)
+          .then(dynImgs => genCampaignHTML(p, dynImgs?.length ? dynImgs : cardImgs, cardImgs))
+          .then(html => { if (html) setCampHtml(injectClusterSection(html, p)); });
       })
       .catch(() => {
-        // Fallback: generate campaign HTML with quick images if dynamic resolution failed
-        genCampaignHTML(p, quickImages).then(html => {
+        genCampaignHTML(p, damImgs, damImgs).then(html => {
           if (html) setCampHtml(injectClusterSection(html, p));
         }).catch(() => {});
       });
