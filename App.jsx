@@ -364,6 +364,34 @@ async function fetchWebsiteSignals(url) {
   }
 }
 
+// ── Claude API fetch with key fallback ───────────────────────────────────────
+// Tries VITE_API_KEY first. On 429 (rate limit) or 401 (exhausted/invalid),
+// automatically retries with VITE_API_KEY_2 if configured.
+async function claudeFetch(body) {
+  const endpoint = import.meta.env.VITE_API_ENDPOINT;
+  const keys = [
+    import.meta.env.VITE_API_KEY,
+    import.meta.env.VITE_API_KEY_2
+  ].filter(Boolean);
+
+  let lastRes;
+  for (const key of keys) {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "anthropic-version": "2023-06-01",
+        "x-api-key": key
+      },
+      body: JSON.stringify(body)
+    });
+    if (res.ok) return res;
+    // Try next key on any error — gateway may return 400/500 for expired keys
+    lastRes = res;
+  }
+  return lastRes;
+}
+
 async function analyzeProspect(url) {
   const endpoint = import.meta.env.VITE_API_ENDPOINT;
 
@@ -378,7 +406,20 @@ async function analyzeProspect(url) {
     })
       .then(r => r.json())
       .then(d => ({
-        screenshot: d?.data?.screenshot?.url || null,
+        // Discard screenshot if:
+        // 1. Microlink itself failed (status !== "success")
+        // 2. Target page returned HTTP error (403, 429, 5xx)
+        // 3. Page title contains block/error keywords (Akamai returns 200 but error HTML)
+        screenshot: (() => {
+          const url = d?.data?.screenshot?.url;
+          if (!url) return null;
+          if (d?.status !== "success") return null;
+          const sc = d?.data?.statusCode;
+          if (sc && sc >= 400) return null;
+          const title = (d?.data?.title || "").toLowerCase();
+          if (/(access denied|forbidden|blocked|error|captcha|unavailable|not found|just a moment)/.test(title)) return null;
+          return url;
+        })(),
         mainImage: d?.data?.image?.url || null,
         images: (d?.data?.images || [])
           .filter(img =>
@@ -421,19 +462,11 @@ Return ONLY this JSON (no markdown, no backticks):
   "heroSubtext": "subheadline beneath the main headline"
 }`;
 
-  const res = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "anthropic-version": "2023-06-01",
-      "x-api-key": import.meta.env.VITE_API_KEY
-    },
-    body: JSON.stringify({
-      model: import.meta.env.VITE_MODEL,
-      max_tokens: 1500,
-      system: "You analyze company websites and return ONLY a valid JSON object. No markdown. No backticks. Just the raw JSON.",
-      messages: [{ role: "user", content: prompt }]
-    })
+  const res = await claudeFetch({
+    model: import.meta.env.VITE_MODEL,
+    max_tokens: 1500,
+    system: "You analyze company websites and return ONLY a valid JSON object. No markdown. No backticks. Just the raw JSON.",
+    messages: [{ role: "user", content: prompt }]
   });
 
   const data = await res.json();
@@ -490,8 +523,6 @@ function injectClusterSection(html, p) {
 }
 
 async function genCampaignHTML(p, resolvedImages, cardImages) {
-  const endpoint = import.meta.env.VITE_API_ENDPOINT;
-
   // cardImages are pre-fetched by handleStart (shared with DAM) — avoids a second Unsplash API
   // call and ensures DAM and campaign page show consistent, relevant images.
   const kwImgs = cardImages?.length >= 4 ? cardImages
@@ -582,19 +613,11 @@ Output a single complete HTML file. All CSS in a <style> tag in <head>. No exter
   for (let attempt = 0; attempt < 2 && !htmlResult; attempt++) {
     if (attempt > 0) await new Promise(r => setTimeout(r, 4000));
     try {
-      const anthropicRes = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "anthropic-version": "2023-06-01",
-          "x-api-key": import.meta.env.VITE_API_KEY
-        },
-        body: JSON.stringify({
-          model: import.meta.env.VITE_MODEL,
-          max_tokens: 8000,
-          system: sysPrompt,
-          messages: [{ role: "user", content: userPrompt }]
-        })
+      const anthropicRes = await claudeFetch({
+        model: import.meta.env.VITE_MODEL,
+        max_tokens: 8000,
+        system: sysPrompt,
+        messages: [{ role: "user", content: userPrompt }]
       });
       if (anthropicRes.ok) {
         const data = await anthropicRes.json();
